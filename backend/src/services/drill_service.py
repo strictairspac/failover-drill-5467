@@ -2,6 +2,7 @@ from sqlalchemy import select
 from fastapi import HTTPException
 from src.models.entities import Scenario, Drill
 from src.services.node_service import list_nodes
+from src.services.page_service import list_copies, node_page_health
 from src.utils.serialize import record
 
 def create_drill(db, payload):
@@ -10,7 +11,9 @@ def create_drill(db, payload):
     pending = db.scalars(select(Drill.id).where(Drill.status.in_(['queued','running']))).all()
     if len(pending) >= 20: raise HTTPException(429, '队列配额20已满，请稍后重试')
     obj = Drill(scenario_id=scenario.id, label=payload.label, status='queued',
-                snapshot={'nodes': list_nodes(db), 'scenario': record(scenario)})
+                snapshot={'nodes': list_nodes(db), 'scenario': record(scenario),
+                          'page_copies': list_copies(db),
+                          'page_health': node_page_health(db)})
     db.add(obj); db.flush(); return obj
 
 def list_drills(db): return [record(d) for d in db.scalars(select(Drill).order_by(Drill.id.desc()).limit(100))]

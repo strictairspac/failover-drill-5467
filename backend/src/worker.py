@@ -19,7 +19,9 @@ while True:
                 if job:
                     job.status = 'running'
                     try:
-                        job.result = elect(job.snapshot['nodes'], job.snapshot['scenario'])
+                        snapshot = job.snapshot
+                        page_health = {h['node_id']: h for h in snapshot.get('page_health', [])}
+                        job.result = elect(snapshot['nodes'], snapshot['scenario'], page_health)
                         job.status = 'completed'
                     except ValueError as exc:
                         job.result = {'error': str(exc), 'simulation': True}

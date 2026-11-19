@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Boolean, JSON, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Boolean, JSON, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from src.config.database import Base
 
@@ -43,3 +43,26 @@ class Audit(Base):
     actor: Mapped[str] = mapped_column(String(120))
     action: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+class PageCopy(Base):
+    """一个节点上一个逻辑页的物理副本。校验和不匹配即坏页。"""
+    __tablename__ = 'page_copies'
+    __table_args__ = (UniqueConstraint('node_id', 'page_key', name='uq_page_node_key'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    node_id: Mapped[int] = mapped_column(ForeignKey('nodes.id'))
+    page_key: Mapped[str] = mapped_column(String(80))
+    version: Mapped[int] = mapped_column(Integer)
+    checksum: Mapped[str] = mapped_column(String(64))
+class RepairJob(Base):
+    """同一次补页按 repair_key 幂等：中断重试不重复发布。"""
+    __tablename__ = 'repair_jobs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repair_key: Mapped[str] = mapped_column(String(64), unique=True)
+    target_copy_id: Mapped[int] = mapped_column(ForeignKey('page_copies.id'))
+    donor_copy_id: Mapped[int | None] = mapped_column(ForeignKey('page_copies.id'), nullable=True)
+    target_version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default='queued')
+    publish_count: Mapped[int] = mapped_column(Integer, default=0)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    blocked_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
